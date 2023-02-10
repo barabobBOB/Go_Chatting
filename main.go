@@ -1,64 +1,50 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
-	"strconv"
-	"time"
 
-	"github.com/antage/eventsource"
 	"github.com/gorilla/pat"
+	"github.com/gorilla/websocket"
 	"github.com/urfave/negroni"
 )
 
-func postMessageHandler(w http.ResponseWriter, r *http.Request) {
-	msg := r.FormValue("msg")
-	name := r.FormValue("name")
-	sendMessage(name, msg)
-}
-
-func addUserHandler(w http.ResponseWriter, r *http.Request) {
-	username := r.FormValue("name")
-	sendMessage("", fmt.Sprintf("add user: %s", username))
-}
-
-func leftUserHandler(w http.ResponseWriter, r *http.Request) {
-	username := r.FormValue("username")
-	sendMessage("", fmt.Sprintf("left user: %s", username))
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 }
 
 type Message struct {
-	Name string `json:"name"`
-	Msg  string `json:"msg"`
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
 }
 
-var msgCh chan Message
+func wshandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
-func sendMessage(name, msg string) {
-	// send message to every clients
-	msgCh <- Message{name, msg}
-}
+	for {
+		m := &Message{}
+		err := conn.ReadJSON(m)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 
-func processMsgCh(es eventsource.EventSource) {
-	for msg := range msgCh {
-		data, _ := json.Marshal(msg)
-		es.SendEventMessage(string(data), "", strconv.Itoa(time.Now().Nanosecond()))
+		err = conn.WriteJSON(m)
+		if err != nil {
+			log.Println(err)
+			return
+		}
 	}
 }
 
 func main() {
-	msgCh = make(chan Message)
-	es := eventsource.New(nil, nil)
-	defer es.Close()
-
-	go processMsgCh(es)
-
 	mux := pat.New()
-	mux.Post("/messages", postMessageHandler)
-	mux.Handle("/stream", es)
-	mux.Post("/users", addUserHandler)
-	mux.Delete("/users", leftUserHandler)
+	mux.Get("/ws", wshandler)
 
 	n := negroni.Classic()
 	n.UseHandler(mux)
