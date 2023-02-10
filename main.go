@@ -1,56 +1,67 @@
 package main
 
 import (
-	"github.com/goincremental/negroni-sessions"
-	"github.com/goincremental/negroni-sessions/cookiestore"
-	"github.com/julienschmidt/httprouter"
-	"github.com/unrolled/render"
-	"github.com/urfave/negroni"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/antage/eventsource"
+	"github.com/gorilla/pat"
+	"github.com/urfave/negroni"
 )
 
-const (
-	// 애플리케이션에서 사용할 세션의 키 정보
-	sessionKey    = "simple_chat_session"
-	sessionSecret = "simple_chat_session_secret"
-)
+func postMessageHandler(w http.ResponseWriter, r *http.Request) {
+	msg := r.FormValue("msg")
+	name := r.FormValue("name")
+	sendMessage(name, msg)
+}
 
-var renderer *render.Render
+func addUserHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.FormValue("name")
+	sendMessage("", fmt.Sprintf("add user: %s", username))
+}
 
-func init() {
-	// 렌더러 생성
-	renderer = render.New()
+func leftUserHandler(w http.ResponseWriter, r *http.Request) {
+	username := r.FormValue("username")
+	sendMessage("", fmt.Sprintf("left user: %s", username))
+}
+
+type Message struct {
+	Name string `json:"name"`
+	Msg  string `json:"msg"`
+}
+
+var msgCh chan Message
+
+func sendMessage(name, msg string) {
+	// send message to every clients
+	msgCh <- Message{name, msg}
+}
+
+func processMsgCh(es eventsource.EventSource) {
+	for msg := range msgCh {
+		data, _ := json.Marshal(msg)
+		es.SendEventMessage(string(data), "", strconv.Itoa(time.Now().Nanosecond()))
+	}
 }
 
 func main() {
-	// 라우터 생성
-	router := httprouter.New()
+	msgCh = make(chan Message)
+	es := eventsource.New(nil, nil)
+	defer es.Close()
 
-	// 핸들러 정의
-	router.GET("/", func(w http.ResponseWriter, req *http.Request, ps httprouter.Params) {
-		// 렌더러를 사용하여 템플릿 렌더링
-		renderer.HTML(w, http.StatusOK, "index", map[string]string{"title": "Simple Chat!"})
-	})
-	router.GET("/login", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		// login 페이지 렌더링
-		renderer.HTML(w, http.StatusOK, "login", nil)
-	})
+	go processMsgCh(es)
 
-	// 로그아웃 기능 에러
-	//router.GET("/logout", func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	//	// 세션에서 사용자 정보 제거 후 로그인 페이지로 이동
-	//	sessions.GetSession(r).Delete(currentUserKey)
-	//	http.Redirect(w, r, "/login", http.StatusFound)
-	//})
+	mux := pat.New()
+	mux.Post("/messages", postMessageHandler)
+	mux.Handle("/stream", es)
+	mux.Post("/users", addUserHandler)
+	mux.Delete("/users", leftUserHandler)
 
-	// negroni 미들웨어 생성
 	n := negroni.Classic()
-	store := cookiestore.New([]byte(sessionSecret))
-	n.Use(sessions.Sessions(sessionKey, store))
+	n.UseHandler(mux)
 
-	// negroni에 router를 핸들러로 등록
-	n.UseHandler(router)
-
-	// 웹 서버 실행
-	n.Run(":3000")
+	http.ListenAndServe(":3000", n)
 }

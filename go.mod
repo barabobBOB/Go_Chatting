@@ -3,11 +3,14 @@ module Go_Chatting
 go 1.19
 
 require (
+	github.com/antage/eventsource v0.0.0-20220422142129-c4aae935d5bd // indirect
 	github.com/clbanning/x2j v0.0.0-20191024224557-825249438eec // indirect
 	github.com/codegangsta/negroni v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/goincremental/negroni-sessions v0.0.0-20171223143234-40b49004abee // indirect
 	github.com/gorilla/context v1.1.1 // indirect
+	github.com/gorilla/mux v1.8.0 // indirect
+	github.com/gorilla/pat v1.0.1 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/gorilla/sessions v1.2.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect

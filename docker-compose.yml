@@ -1,0 +1,15 @@
+#version: "3"
+#
+#services:
+#  db:
+#    image: mongo:latest
+#    restart: unless-stopped #컨테이너 스탑하기전까지 항상 재시작
+#    # volumes:
+#    #   - mongoVolume:/data/db
+#    environment:
+#      MONGO_INITDB_ROOT_USERNAME: root
+#      MONGO_INITDB_ROOT_PASSWORD: 1234
+#      MONGO_INITDB_DATABASE: django_mongodb_docker
+#      # MONGODB_DATA_DIR: /var/lib/docker/volumes/mongo
+#    ports:
+#      - 27017:27017
