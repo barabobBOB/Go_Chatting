@@ -3,51 +3,39 @@ package main
 import (
 	"log"
 	"net/http"
-
-	"github.com/gorilla/pat"
-	"github.com/gorilla/websocket"
-	"github.com/urfave/negroni"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
+func main() {
+	world := newWorld()
+	go world.run()
 
-type Message struct {
-	Type string      `json:"type"`
-	Data interface{} `json:"data"`
-}
+	http.HandleFunc("/", serveHome)
 
-func wshandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	http.HandleFunc("/chat", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		client := NewClient(world, conn)
+		client.world.ChanEnter <- client
+	})
+
+	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
-		log.Println(err)
+		log.Fatal("ListenAndServe: ", err)
+	}
+}
+
+func serveHome(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.URL)
+	if r.URL.Path != "/" {
+		http.Error(w, "Not found", http.StatusNotFound)
 		return
 	}
-
-	for {
-		m := &Message{}
-		err := conn.ReadJSON(m)
-		if err != nil {
-			log.Println(err)
-			return
-		}
-
-		err = conn.WriteJSON(m)
-		if err != nil {
-			log.Println(err)
-			return
-		}
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-}
-
-func main() {
-	mux := pat.New()
-	mux.Get("/ws", wshandler)
-
-	n := negroni.Classic()
-	n.UseHandler(mux)
-
-	http.ListenAndServe(":3000", n)
+	http.ServeFile(w, r, "frontend/home.html")
 }
