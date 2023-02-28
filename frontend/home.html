@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Chat Example</title>
+    <title>Go Chat</title>
     <script type="text/javascript">
         window.onload = function () {
             var conn;
             var msg = document.getElementById("msg");
             var log = document.getElementById("log");
+
             function appendLog(item) {
                 var doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
                 log.appendChild(item);
@@ -26,6 +27,9 @@
                 return false;
             };
             if (window["WebSocket"]) {
+                let user = prompt("USER NAME");
+                let location = prompt("LOCATION NUMBER");
+
                 conn = new WebSocket("ws://" + document.location.host + "/chat");
                 conn.onclose = function (evt) {
                     var item = document.createElement("div");
